@@ -8,6 +8,7 @@ import org.hswebframework.web.loggin.aop.EnableAccessLogger;
 import org.hswebframework.web.logging.events.AccessLoggerAfterEvent;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Profile;
@@ -18,12 +19,14 @@ import javax.annotation.PostConstruct;
 
 
 @SpringBootApplication(scanBasePackages = "org.jetlinks.community", exclude = {
-    DataSourceAutoConfiguration.class
+    DataSourceAutoConfiguration.class,
+    ElasticsearchRestClientAutoConfiguration.class
 })
 @EnableCaching
 @EnableEasyormRepository("org.jetlinks.community.**.entity")
 @EnableAopAuthorize
 @EnableAccessLogger
+@Slf4j
 public class JetLinksApplication {
 
     public static void main(String[] args) {

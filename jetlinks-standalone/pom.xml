@@ -5,13 +5,15 @@
     <parent>
         <artifactId>jetlinks-community</artifactId>
         <groupId>org.jetlinks.community</groupId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.5.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>jetlinks-standalone</artifactId>
     <properties>
-        <docker.image.name>registry.cn-shenzhen.aliyuncs.com/jetlinks-community/${project.artifactId}</docker.image.name>
+        <docker.image.name>registry.cn-shenzhen.aliyuncs.com/jetlinks/${project.artifactId}</docker.image.name>
+        <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss</maven.build.timestamp.format>
     </properties>
 
     <build>
@@ -34,6 +36,9 @@
                 <configuration>
                     <mainClass>${project.groupId}.standalone.JetLinksApplication</mainClass>
                     <layout>ZIP</layout>
+                    <layers>
+                        <enabled>true</enabled>
+                    </layers>
                 </configuration>
                 <executions>
                     <execution>
@@ -59,6 +64,9 @@
                         <TZ>Asia/Shanghai</TZ>
                         <APP_JAR>/${project.build.finalName}.jar</APP_JAR>
                     </env>
+                    <runs>
+                        <run>chmod +x docker-entrypoint.sh</run>
+                    </runs>
                     <entryPoint>["/docker-entrypoint.sh"]</entryPoint>
                     <resources>
                         <resource>
@@ -93,11 +101,18 @@
             <classifier>osx-x86_64</classifier>
         </dependency>
 
+
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty</artifactId>
+            <version>0.9.10.RELEASE</version>
+            <scope>compile</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
         </dependency>
-
 
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -124,14 +139,32 @@
         </dependency>
 
         <dependency>
-            <groupId>org.jetlinks</groupId>
-            <artifactId>jetlinks-supports</artifactId>
-            <version>${jetlinks.version}</version>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>notify-manager</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>logging-manager</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>rule-engine-manager</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>visualization-manager</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.jetlinks</groupId>
-            <artifactId>jetlinks-gateway</artifactId>
+            <artifactId>jetlinks-supports</artifactId>
             <version>${jetlinks.version}</version>
         </dependency>
 
@@ -140,22 +173,15 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.boot</groupId>-->
+<!--            <artifactId>spring-boot-starter-actuator</artifactId>-->
+<!--        </dependency>-->
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-elastic</artifactId>
-            <version>1.3.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot.experimental</groupId>
             <artifactId>spring-boot-starter-data-r2dbc</artifactId>
         </dependency>
-
 
         <dependency>
             <groupId>dev.miku</groupId>
@@ -170,6 +196,11 @@
         <dependency>
             <groupId>io.r2dbc</groupId>
             <artifactId>r2dbc-h2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.r2dbc</groupId>
+            <artifactId>r2dbc-mssql</artifactId>
         </dependency>
 
         <dependency>
@@ -207,26 +238,18 @@
 
         <dependency>
             <groupId>org.hswebframework.web</groupId>
-            <artifactId>hsweb-system-dictionary</artifactId>
-            <version>${hsweb.framework.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hswebframework.web</groupId>
             <artifactId>hsweb-access-logging-aop</artifactId>
             <version>${hsweb.framework.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>de.ruedigermoeller</groupId>
+            <artifactId>fst</artifactId>
+            <version>2.57</version>
+        </dependency>
+
+
     </dependencies>
 
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.elasticsearch.client</groupId>
-                <artifactId>elasticsearch-rest-high-level-client</artifactId>
-                <version>6.7.2</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 </project>

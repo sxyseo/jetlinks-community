@@ -18,10 +18,15 @@ import java.io.InputStream;
 @Component
 public class DefaultImportExportService implements ImportExportService {
 
+    private WebClient client;
+
+    public DefaultImportExportService(WebClient.Builder builder) {
+        client = builder.build();
+    }
 
     public <T> Flux<RowResult<T>> doImport(Class<T> clazz, String fileUrl) {
         return getInputStream(fileUrl)
-                .flatMapMany(inputStream -> ExcelReadDataListener.of(inputStream, clazz));
+            .flatMapMany(inputStream -> ExcelReadDataListener.of(inputStream, clazz));
     }
 
     @Override
@@ -31,16 +36,17 @@ public class DefaultImportExportService implements ImportExportService {
 
     public Mono<InputStream> getInputStream(String fileUrl) {
 
-        return Mono.defer(()->{
+        return Mono.defer(() -> {
             if (fileUrl.startsWith("http")) {
-               return WebClient.create().get()
+                return client
+                    .get()
                     .uri(fileUrl)
                     .accept(MediaType.APPLICATION_OCTET_STREAM)
                     .exchange()
                     .flatMap(clientResponse -> clientResponse.bodyToMono(Resource.class))
                     .flatMap(resource -> Mono.fromCallable(resource::getInputStream));
             } else {
-                return Mono.fromCallable(()->new FileInputStream(fileUrl));
+                return Mono.fromCallable(() -> new FileInputStream(fileUrl));
             }
         });
 

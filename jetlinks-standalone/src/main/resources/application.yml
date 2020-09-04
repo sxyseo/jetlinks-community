@@ -13,7 +13,7 @@ spring:
       WRITE_DATES_AS_TIMESTAMPS: true
     default-property-inclusion: non_null
   resources:
-    static-locations: file:./ui-miniui/,file:./static/,/,classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/, classpath:/public/
+    static-locations: file:./static/,/,classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/, classpath:/public/
   redis:
     host: 127.0.0.1
     port: 6379
@@ -21,7 +21,7 @@ spring:
       pool:
         max-active: 1024
     timeout: 20s
-
+    serializer: jdk # 设置fst时,redis key使用string序列化,value使用 fst序列化.
   #        max-wait: 10s
   r2dbc:
     url: r2dbc:postgresql://localhost:5432/jetlinks
@@ -29,10 +29,26 @@ spring:
     password: jetlinks
     pool:
       max-size: 32
+  reactor:
+    debug-agent:
+      enabled: false
+  data:
+    elasticsearch:
+      client:
+        reactive:
+          endpoints: ${elasticsearch.client.host}:${elasticsearch.client.port}
+          max-in-memory-size: 100MB
+          socket-timeout: ${elasticsearch.client.socket-timeout}
+          connection-timeout: ${elasticsearch.client.socket-timeout}
 easyorm:
   default-schema: public # 数据库默认的schema
   dialect: postgres #数据库方言
 elasticsearch:
+  embedded:
+    enabled: false # 为true时使用内嵌的elasticsearch,不建议在生产环境中使用
+    data-path: ./data/elasticsearch
+    port: 9200
+    host: 0.0.0.0
   client:
     host: localhost
     port: 9200
@@ -40,11 +56,19 @@ elasticsearch:
     connect-timeout: 5000
     socket-timeout: 5000
     connection-request-timeout: 8000
+  index:
+    default-strategy: time-by-month #默认es的索引按月进行分表, direct则为直接操作索引.
+    settings:
+      number-of-shards: 1 # es 分片数量
+      number-of-replicas: 0 # 副本数量
 device:
   message:
     writer:
-      elastic:
+      time-series:
         enabled: true #写出设备消息数据到elasticsearch
+captcha:
+  enabled: false # 开启验证码
+  ttl: 2m #验证码过期时间,2分钟
 hsweb:
   cors:
     enable: true
@@ -60,15 +84,15 @@ hsweb:
   file:
     upload:
       static-file-path: ./static/upload
-      static-location: http://localhost:8844/upload
+      static-location: http://localhost:8848/upload
   webflux:
     response-wrapper: enabled #开启响应包装器(将返回值包装为ResponseMessage)
-  auth:   #默认的用户配置
-    users:
-      admin:
-        username: admin
-        password: admin
-        name: 超级管理员
+  #  auth:   #默认的用户配置
+  #    users:
+  #      admin:
+  #        username: admin
+  #        password: admin
+  #        name: 超级管理员
   authorize:
     auto-parse: true
   cache:
@@ -77,13 +101,13 @@ hsweb:
       local-cache-type: guava
 jetlinks:
   server-id: ${spring.application.name}:${server.port} #设备服务网关服务ID,不同服务请设置不同的ID
-  transport-limit:
-    MQTT: 1000000
   logging:
     system:
       context:
         server: ${spring.application.name}
-
+  protocol:
+    spi:
+      enabled: true # 为true时开启自动加载通过依赖引入的协议包
 logging:
   level:
     org.jetlinks: debug
@@ -93,21 +117,26 @@ logging:
     #    org.springframework.data.r2dbc.connectionfactory: debug
     io.micrometer: warn
     org.hswebframework.expands: error
-    system: warn
-    org.jetlinks.rule.engine: debug
+    system: debug
+    org.jetlinks.rule.engine: warn
     org.jetlinks.gateway: debug
     org.springframework: warn
+    org.elasticsearch: error
+  config: classpath:logback-spring.xml
 vertx:
   max-event-loop-execute-time-unit: seconds
   max-event-loop-execute-time: 30
   max-worker-execute-time-unit: seconds
   max-worker-execute-time: 30
   prefer-native-transport: true
-management:
-  metrics:
-    export:
-      elastic:
-        host: http://${elasticsearch.client.host}:${elasticsearch.client.port}
-        index: metrics
-        index-date-format: yyyy-MM
+micrometer:
+  time-series:
+    tags:
+      server: ${spring.application.name}
+    metrics:
+      default:
         step: 30s
+management:
+  health:
+    elasticsearch:
+      enabled: false  # 关闭elasticsearch健康检查

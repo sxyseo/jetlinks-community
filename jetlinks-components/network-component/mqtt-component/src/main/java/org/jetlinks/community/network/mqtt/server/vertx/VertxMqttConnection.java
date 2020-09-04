@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.net.SocketAddress;
 import io.vertx.mqtt.MqttEndpoint;
 import io.vertx.mqtt.MqttTopicSubscription;
 import io.vertx.mqtt.messages.MqttPublishMessage;
@@ -26,7 +27,9 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 
 import javax.annotation.Nonnull;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -35,22 +38,34 @@ import java.util.stream.Collectors;
 @Slf4j
 class VertxMqttConnection implements MqttConnection {
 
-    private MqttEndpoint endpoint;
-    private long keepAliveTimeout;
+    private final MqttEndpoint endpoint;
+    private long keepAliveTimeoutMs;
     @Getter
     private long lastPingTime = System.currentTimeMillis();
     private volatile boolean closed = false, accepted = false, autoAckSub = true, autoAckUnSub = true, autoAckMsg = true;
 
-    private EmitterProcessor<MqttPublishing> messageProcessor = EmitterProcessor.create(false);
+    private final EmitterProcessor<MqttPublishing> messageProcessor = EmitterProcessor.create(false);
 
-    private FluxSink<MqttPublishing> publishingFluxSink = messageProcessor.sink();
+    private final FluxSink<MqttPublishing> publishingFluxSink = messageProcessor.sink(FluxSink.OverflowStrategy.BUFFER);
 
-    private EmitterProcessor<MqttSubscription> subscription = EmitterProcessor.create(false);
-    private EmitterProcessor<MqttUnSubscription> unsubscription = EmitterProcessor.create(false);
+    private final EmitterProcessor<MqttSubscription> subscription = EmitterProcessor.create(false);
+    private final EmitterProcessor<MqttUnSubscription> unsubscription = EmitterProcessor.create(false);
+
+    private static final MqttAuth emptyAuth = new MqttAuth() {
+        @Override
+        public String getUsername() {
+            return "";
+        }
+
+        @Override
+        public String getPassword() {
+            return "";
+        }
+    };
 
     public VertxMqttConnection(MqttEndpoint endpoint) {
         this.endpoint = endpoint;
-        this.keepAliveTimeout = (endpoint.keepAliveTimeSeconds() + 10) * 1000L;
+        this.keepAliveTimeoutMs = (endpoint.keepAliveTimeSeconds() + 10) * 1000L;
     }
 
     private final Consumer<MqttConnection> defaultListener = mqttConnection -> {
@@ -58,6 +73,7 @@ class VertxMqttConnection implements MqttConnection {
         subscription.onComplete();
         unsubscription.onComplete();
         messageProcessor.onComplete();
+
     };
 
     private Consumer<MqttConnection> disconnectConsumer = defaultListener;
@@ -69,7 +85,7 @@ class VertxMqttConnection implements MqttConnection {
 
     @Override
     public Optional<MqttAuth> getAuth() {
-        return endpoint.auth() == null ? Optional.empty() : Optional.of(new VertxMqttAuth());
+        return endpoint.auth() == null ? Optional.of(emptyAuth) : Optional.of(new VertxMqttAuth());
     }
 
     @Override
@@ -111,6 +127,11 @@ class VertxMqttConnection implements MqttConnection {
         }
         init();
         return this;
+    }
+
+    @Override
+    public void keepAlive() {
+        ping();
     }
 
     void ping() {
@@ -184,6 +205,23 @@ class VertxMqttConnection implements MqttConnection {
             });
     }
 
+    @Override
+    public void setKeepAliveTimeout(Duration duration) {
+        keepAliveTimeoutMs = duration.toMillis();
+    }
+
+    private volatile InetSocketAddress clientAddress;
+
+    @Override
+    public InetSocketAddress getClientAddress() {
+        if (clientAddress == null) {
+            SocketAddress address = endpoint.remoteAddress();
+            if (address != null) {
+                clientAddress = new InetSocketAddress(address.host(), address.port());
+            }
+        }
+        return clientAddress;
+    }
 
     @Override
     public String getClientId() {
@@ -236,7 +274,7 @@ class VertxMqttConnection implements MqttConnection {
 
     @Override
     public boolean isAlive() {
-        return endpoint.isConnected() && ((System.currentTimeMillis() - lastPingTime) < keepAliveTimeout);
+        return endpoint.isConnected() && (keepAliveTimeoutMs < 0 || ((System.currentTimeMillis() - lastPingTime) < keepAliveTimeoutMs));
     }
 
     @Override
@@ -255,6 +293,7 @@ class VertxMqttConnection implements MqttConnection {
         }
         closed = true;
         disconnectConsumer.accept(this);
+        disconnectConsumer = defaultListener;
     }
 
     @AllArgsConstructor
@@ -305,19 +344,14 @@ class VertxMqttConnection implements MqttConnection {
 
         @Override
         public String toString() {
-            return "{" +
-                "topic=" + getTopic() +
-                ",messageId=" + getMessageId() +
-                ",qos=" + getQosLevel() +
-                ",payload=" + message.payload().toString(StandardCharsets.UTF_8) +
-                '}';
+            return print();
         }
     }
 
     @AllArgsConstructor
     class VertxMqttPublishing implements MqttPublishing {
 
-        private MqttPublishMessage message;
+        private final MqttPublishMessage message;
 
         private volatile boolean acknowledged;
 
@@ -345,7 +379,7 @@ class VertxMqttConnection implements MqttConnection {
     @AllArgsConstructor
     class VertxMqttSubscription implements MqttSubscription {
 
-        private MqttSubscribeMessage message;
+        private final MqttSubscribeMessage message;
 
         private volatile boolean acknowledged;
 
@@ -368,7 +402,7 @@ class VertxMqttConnection implements MqttConnection {
     @AllArgsConstructor
     class VertxMqttMqttUnSubscription implements MqttUnSubscription {
 
-        private MqttUnsubscribeMessage message;
+        private final MqttUnsubscribeMessage message;
 
         private volatile boolean acknowledged;
 

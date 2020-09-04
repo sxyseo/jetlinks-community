@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -21,19 +22,19 @@ public class DefaultMessageGateway implements MessageGateway {
     @Getter
     private final String id;
     @Getter
-    private String name;
+    private final String name;
 
-    private TopicPart root = new TopicPart(null, "/");
+    private final TopicPart root = new TopicPart(null, "/");
 
-    private Map<String, ConnectionSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, ConnectionSession> sessions = new ConcurrentHashMap<>();
 
-    private ClientSessionManager sessionManager;
+    private final ClientSessionManager sessionManager;
 
-    private Map<String, Connector> connectors = new ConcurrentHashMap<>();
+    private final Map<String, Connector> connectors = new ConcurrentHashMap<>();
 
-    private AtomicBoolean started = new AtomicBoolean();
+    private final AtomicBoolean started = new AtomicBoolean();
 
-    private LocalMessageConnector localGatewayConnector;
+    private final LocalMessageConnector localGatewayConnector;
 
     public DefaultMessageGateway(String id, ClientSessionManager sessionManager) {
         this(id, id, sessionManager);
@@ -47,6 +48,12 @@ public class DefaultMessageGateway implements MessageGateway {
         this.registerMessageConnector(localGatewayConnector);
     }
 
+    private final AtomicLong nextSubCounter = new AtomicLong();
+
+    @Override
+    public String nextSubscriberId(String prefix) {
+        return prefix + ":" + nextSubCounter.getAndIncrement();
+    }
     @Override
     public Flux<ClientSession> publish(TopicMessage message, boolean shareCluster) {
         return publishLocal(message, session -> true);
@@ -54,8 +61,13 @@ public class DefaultMessageGateway implements MessageGateway {
 
     @Override
     public Flux<TopicMessage> subscribe(Collection<Subscription> subscriptions, boolean shareCluster) {
+        return subscribe(subscriptions, "local:".concat(IDGenerator.SNOW_FLAKE_STRING.generate()), shareCluster);
+    }
+
+    @Override
+    public Flux<TopicMessage> subscribe(Collection<Subscription> subscriptions, String id, boolean shareCluster) {
         return Flux.defer(() -> {
-            LocalMessageConnection networkConnection = localGatewayConnector.addConnection("local:" + IDGenerator.SNOW_FLAKE_STRING.generate(), shareCluster);
+            LocalMessageConnection networkConnection = localGatewayConnector.addConnection(id, shareCluster);
             return networkConnection
                 .onLocalMessage()
                 .doOnSubscribe(sub -> subscriptions.forEach(networkConnection::addSubscription))
@@ -93,6 +105,7 @@ public class DefaultMessageGateway implements MessageGateway {
         return Flux.defer(() -> root.find(message.getTopic())
             .flatMapIterable(TopicPart::getSessionId)
             .flatMap(id -> Mono.justOrEmpty(sessions.get(id)))
+            .distinct(ConnectionSession::getId)
             .filter(connectionSession -> connectionSession.isAlive() && filter.test(connectionSession))
             .flatMap(session ->
                 session.connection
@@ -111,8 +124,6 @@ public class DefaultMessageGateway implements MessageGateway {
 
     @Override
     public void startup() {
-        Flux.interval(Duration.ofSeconds(10))
-            .subscribe();
         if (!started.getAndSet(true)) {
             for (Connector value : connectors.values()) {
                 if (value.disposable == null) {
@@ -183,7 +194,7 @@ public class DefaultMessageGateway implements MessageGateway {
             //加载会话已有的订阅信息
             session.getSubscriptions()
                 .map(Subscription::getTopic)
-                .flatMap(topic -> root.find(topic))
+                .flatMap(topic -> root.get(topic))
                 .subscribe(part -> part.addSessionId(getId()));
         }
 

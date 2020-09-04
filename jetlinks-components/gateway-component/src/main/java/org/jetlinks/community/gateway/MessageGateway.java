@@ -13,8 +13,9 @@ import java.util.stream.Stream;
  *
  * @author zhouhao
  * @see 1.0
- * @see MessageConnector
+ * @see org.jetlinks.core.event.EventBus
  */
+@Deprecated
 public interface MessageGateway {
 
     /**
@@ -74,6 +75,9 @@ public interface MessageGateway {
         return subscribe(Stream.of(topics).map(Subscription::new).collect(Collectors.toList()), false);
     }
 
+    Flux<TopicMessage> subscribe(Collection<Subscription> subscription, String id, boolean shareCluster);
+
+
     /**
      * 注册一个消息连接器,用于进行真实的消息收发
      *
@@ -100,4 +104,5 @@ public interface MessageGateway {
      */
     void shutdown();
 
+    String nextSubscriberId(String prefix);
 }

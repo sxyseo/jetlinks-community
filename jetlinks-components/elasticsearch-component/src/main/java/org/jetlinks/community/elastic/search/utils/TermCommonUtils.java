@@ -24,11 +24,11 @@ public class TermCommonUtils {
             return new ArrayList<Object>(((Collection) value));
         }
 
-        return Arrays.asList(value);
+        return Collections.singletonList(value);
     }
 
     public static Object getStandardsTermValue(List<Object> value) {
-        if (value.size() > 0 && value.size() < 2) {
+        if (value.size() == 1) {
             return value.get(0);
         }
         return value;

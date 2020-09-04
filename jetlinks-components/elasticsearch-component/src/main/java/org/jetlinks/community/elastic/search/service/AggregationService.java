@@ -1,12 +1,9 @@
 package org.jetlinks.community.elastic.search.service;
 
-import org.hswebframework.ezorm.core.param.QueryParam;
-import org.jetlinks.community.elastic.search.aggreation.bucket.BucketAggregationsStructure;
-import org.jetlinks.community.elastic.search.aggreation.bucket.BucketResponse;
-import org.jetlinks.community.elastic.search.aggreation.metrics.MetricsAggregationStructure;
-import org.jetlinks.community.elastic.search.aggreation.metrics.MetricsResponse;
-import org.jetlinks.community.elastic.search.index.ElasticIndex;
-import reactor.core.publisher.Mono;
+import org.jetlinks.community.timeseries.query.AggregationQueryParam;
+import reactor.core.publisher.Flux;
+
+import java.util.Map;
 
 /**
  * @author bsetfeng
@@ -14,7 +11,6 @@ import reactor.core.publisher.Mono;
  **/
 public interface AggregationService {
 
-    Mono<MetricsResponse> metricsAggregation(QueryParam queryParam, MetricsAggregationStructure structure, ElasticIndex provider);
+    Flux<Map<String, Object>> aggregation(String[] index, AggregationQueryParam queryParam);
 
-    Mono<BucketResponse> bucketAggregation(QueryParam queryParam, BucketAggregationsStructure structure, ElasticIndex provider);
 }

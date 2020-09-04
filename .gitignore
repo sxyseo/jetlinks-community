@@ -19,11 +19,11 @@
 hs_err_pid*
 **/transaction-logs/
 !/.mvn/wrapper/maven-wrapper.jar
-/data/
 *.db
+data/
 /static/
 /upload
 /ui/upload/
 docker/data
-!ip2region.db
 !device-simulator.jar
+!demo-protocol-1.0.jar
